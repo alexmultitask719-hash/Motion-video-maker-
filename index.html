@@ -1,11 +1,356 @@
-{
-  "container": {
-    "kind": "project",
-    "create": {
-      "name": "Motion Video Maker - Living Images (Full Code)",
-      "doc": {
-        "markdown": "# Motion Video Maker - Living Images (Full Code)\n\nThis is the complete code. Copy everything in the code block below, paste it into your `index.html` file on GitHub (replace the old code), and commit.\n\n## Full code (index.html)\n\n```html\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Motion Video Maker - Living Images</title>\n<style>\n  * { box-sizing: border-box; }\n  body { margin: 0; font-family: system-ui, sans-serif; background: #0f1220; color: #f2f2f2; }\n  .wrap { max-width: 900px; margin: 0 auto; padding: 24px; }\n  h1 { margin: 0 0 4px; }\n  p.sub { margin: 0 0 20px; color: #9aa0b8; }\n  .panel { background: #181c30; border-radius: 14px; padding: 18px; margin-bottom: 18px; }\n  label { display: block; margin: 12px 0 6px; font-size: 14px; color: #c5c9de; }\n  input[type=file], select, input[type=number] {\n    width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #2c3254;\n    background: #0f1220; color: #f2f2f2; font-size: 15px;\n  }\n  .row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }\n  @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }\n  .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin-top: 8px; }\n  .checks label { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 15px; color: #f2f2f2; }\n  .checks input { width: 18px; height: 18px; }\n  input[type=range] { width: 100%; }\n  button {\n    margin-top: 16px; padding: 12px 20px; border: 0; border-radius: 10px;\n    background: #5b6cff; color: white; font-size: 16px; cursor: pointer;\n  }\n  button:disabled { background: #3a4070; cursor: not-allowed; }\n  canvas, video { width: 100%; border-radius: 10px; background: #000; display: block; }\n  #status { margin-top: 10px; color: #9aa0b8; font-size: 14px; }\n  a.download { display: inline-block; margin-top: 12px; color: #8fd1ff; font-size: 16px; }\n  .bar { height: 8px; background: #2c3254; border-radius: 6px; overflow: hidden; margin-top: 10px; }\n  .bar div { height: 100%; width: 0; background: #5b6cff; }\n</style>\n</head>\n<body>\n<div class=\"wrap\">\n  <h1>Motion Video Maker</h1>\n  <p class=\"sub\">Turn a still image into a living video with small, natural movements.</p>\n\n  <div class=\"panel\">\n    <label for=\"file\">1. Choose an image</label>\n    <input id=\"file\" type=\"file\" accept=\"image/*\">\n\n    <div class=\"row\">\n      <div>\n        <label for=\"camera\">2. Camera move</label>\n        <select id=\"camera\">\n          <option value=\"zoomin\">Slow zoom in</option>\n          <option value=\"zoomout\">Slow zoom out</option>\n          <option value=\"panleft\">Pan left</option>\n          <option value=\"panright\">Pan right</option>\n          <option value=\"drift\">Gentle drift</option>\n          <option value=\"none\">None (stay still)</option>\n          <option value=\"random\">Random</option>\n        </select>\n      </div>\n      <div>\n        <label for=\"duration\">3. Seconds (max 60)</label>\n        <input id=\"duration\" type=\"number\" min=\"2\" max=\"60\" value=\"10\">\n      </div>\n      <div>\n        <label for=\"ratio\">4. Shape</label>\n        <select id=\"ratio\">\n          <option value=\"1920x1080\">16:9 (YouTube)</option>\n          <option value=\"1080x1920\">9:16 (Shorts / TikTok)</option>\n          <option value=\"1080x1080\">1:1 (Square)</option>\n        </select>\n      </div>\n    </div>\n\n    <label>5. Living effects (mix any)</label>\n    <div class=\"checks\">\n      <label><input type=\"checkbox\" id=\"fxWave\" checked> Breathing wave</label>\n      <label><input type=\"checkbox\" id=\"fxParallax\" checked> Depth parallax</label>\n      <label><input type=\"checkbox\" id=\"fxParticles\" checked> Floating dust</label>\n      <label><input type=\"checkbox\" id=\"fxLight\" checked> Light flicker</label>\n      <label><input type=\"checkbox\" id=\"fxShake\"> Handheld shake</label>\n      <label><input type=\"checkbox\" id=\"fxVignette\" checked> Soft vignette</label>\n    </div>\n\n    <label for=\"strength\">Movement strength: <span id=\"strengthVal\">Medium</span></label>\n    <input id=\"strength\" type=\"range\" min=\"1\" max=\"3\" step=\"1\" value=\"2\">\n\n    <button id=\"go\" disabled>Generate video</button>\n    <div class=\"bar\"><div id=\"progress\"></div></div>\n    <div id=\"status\">Pick an image to begin.</div>\n  </div>\n\n  <div class=\"panel\">\n    <canvas id=\"canvas\" width=\"1920\" height=\"1080\"></canvas>\n    <div id=\"result\"></div>\n  </div>\n</div>\n\n<script>\nconst $ = id => document.getElementById(id);\nconst canvas = $('canvas');\nconst ctx = canvas.getContext('2d');\nconst goBtn = $('go');\nconst statusEl = $('status');\nconst progressEl = $('progress');\nconst resultEl = $('result');\n\nlet img = null;\nlet particles = [];\n\n// Strength settings: 1 subtle, 2 medium, 3 strong\nconst STRENGTH = {\n  1: { name: 'Subtle', wave: 3,  parallax: 0.015, zoom: 0.05, shake: 2,  light: 0.05 },\n  2: { name: 'Medium', wave: 6,  parallax: 0.03,  zoom: 0.09, shake: 4,  light: 0.09 },\n  3: { name: 'Strong', wave: 10, parallax: 0.05,  zoom: 0.14, shake: 7,  light: 0.14 }\n};\n\n$('strength').addEventListener('input', () => {\n  $('strengthVal').textContent = STRENGTH[$('strength').value].name;\n});\n\n$('file').addEventListener('change', () => {\n  const f = $('file').files[0];\n  if (!f) return;\n  const image = new Image();\n  image.onload = () => {\n    img = image;\n    goBtn.disabled = false;\n    statusEl.textContent = 'Image loaded. Choose your effects and press Generate.';\n    setCanvasSize();\n    renderFrame(0, getSettings(), 0);\n  };\n  image.src = URL.createObjectURL(f);\n});\n\n$('ratio').addEventListener('change', () => {\n  setCanvasSize();\n  if (img) renderFrame(0, getSettings(), 0);\n});\n\nfunction setCanvasSize() {\n  const [w, h] = $('ratio').value.split('x').map(Number);\n  canvas.width = w;\n  canvas.height = h;\n  initParticles();\n}\n\nfunction initParticles() {\n  particles = [];\n  const count = 70;\n  for (let i = 0; i < count; i++) {\n    particles.push({\n      x: Math.random() * canvas.width,\n      y: Math.random() * canvas.height,\n      r: 1 + Math.random() * 3,\n      speed: 6 + Math.random() * 18,\n      sway: Math.random() * Math.PI * 2,\n      alpha: 0.15 + Math.random() * 0.4\n    });\n  }\n}\n\nfunction getSettings() {\n  let camera = $('camera').value;\n  if (camera === 'random') {\n    const options = ['zoomin', 'zoomout', 'panleft', 'panright', 'drift'];\n    camera = options[Math.floor(Math.random() * options.length)];\n  }\n  return {\n    camera,\n    s: STRENGTH[$('strength').value],\n    wave: $('fxWave').checked,\n    parallax: $('fxParallax').checked,\n    particles: $('fxParticles').checked,\n    light: $('fxLight').checked,\n    shake: $('fxShake').checked,\n    vignette: $('fxVignette').checked\n  };\n}\n\nfunction ease(t) { return t * t * (3 - 2 * t); }\n\n// Draw the image with a camera move, as a single layer.\nfunction drawLayer(target, t, o, layerScale, shiftX, shiftY) {\n  const cw = canvas.width, ch = canvas.height;\n  const baseScale = Math.max(cw / img.width, ch / img.height);\n  const e = ease(t);\n  let zoom = 1.0 + o.s.zoom * 0.6;\n  let offX = 0, offY = 0;\n\n  switch (o.camera) {\n    case 'zoomin':  zoom = 1 + o.s.zoom * e; break;\n    case 'zoomout': zoom = 1 + o.s.zoom * (1 - e); break;\n    case 'panleft': offX = 0.5 - e; zoom = 1 + o.s.zoom; break;\n    case 'panright': offX = -0.5 + e; zoom = 1 + o.s.zoom; break;\n    case 'drift':\n      offX = Math.sin(t * Math.PI * 2) * 0.5;\n      offY = Math.cos(t * Math.PI * 2 * 0.8) * 0.4;\n      zoom = 1 + o.s.zoom;\n      break;\n    case 'none': zoom = 1.04; break;\n  }\n\n  const scale = baseScale * zoom * layerScale;\n  const dw = img.width * scale, dh = img.height * scale;\n  const spareX = Math.max(0, dw - cw), spareY = Math.max(0, dh - ch);\n  const x = (cw - dw) / 2 + offX * spareX + shiftX;\n  const y = (ch - dh) / 2 + offY * spareY + shiftY;\n  target.drawImage(img, x, y, dw, dh);\n}\n\n// Offscreen buffers\nconst buffer = document.createElement('canvas');\nconst bctx = buffer.getContext('2d');\nconst fg = document.createElement('canvas');\nconst fctx = fg.getContext('2d');\n\nfunction renderFrame(t, o, timeSec) {\n  const cw = canvas.width, ch = canvas.height;\n  if (buffer.width !== cw || buffer.height !== ch) {\n    buffer.width = cw; buffer.height = ch;\n    fg.width = cw; fg.height = ch;\n  }\n\n  // 1) Build the base picture in the buffer (with optional parallax layers)\n  bctx.globalCompositeOperation = 'source-over';\n  bctx.fillStyle = '#000';\n  bctx.fillRect(0, 0, cw, ch);\n\n  if (o.parallax) {\n    // Background layer moves a little\n    const bgX = Math.sin(timeSec * 0.6) * cw * o.s.parallax * 0.5;\n    const bgY = Math.cos(timeSec * 0.5) * ch * o.s.parallax * 0.4;\n    drawLayer(bctx, t, o, 1.0, bgX, bgY);\n\n    // Foreground layer (centre of the image) moves the opposite way\n    fctx.globalCompositeOperation = 'source-over';\n    fctx.clearRect(0, 0, cw, ch);\n    const fgX = -Math.sin(timeSec * 0.6) * cw * o.s.parallax;\n    const fgY = -Math.cos(timeSec * 0.5) * ch * o.s.parallax * 0.8;\n    drawLayer(fctx, t, o, 1.04, fgX, fgY);\n    fctx.globalCompositeOperation = 'destination-in';\n    const mask = fctx.createRadialGradient(cw / 2, ch / 2, ch * 0.15, cw / 2, ch / 2, ch * 0.65);\n    mask.addColorStop(0, 'rgba(0,0,0,1)');\n    mask.addColorStop(1, 'rgba(0,0,0,0)');\n    fctx.fillStyle = mask;\n    fctx.fillRect(0, 0, cw, ch);\n    fctx.globalCompositeOperation = 'source-over';\n    bctx.drawImage(fg, 0, 0);\n  } else {\n    drawLayer(bctx, t, o, 1.0, 0, 0);\n  }\n\n  // 2) Copy buffer to the main canvas, with a wave warp if enabled\n  ctx.fillStyle = '#000';\n  ctx.fillRect(0, 0, cw, ch);\n\n  let shakeX = 0, shakeY = 0;\n  if (o.shake) {\n    shakeX = (Math.sin(timeSec * 7.3) + Math.sin(timeSec * 12.9)) * o.s.shake * 0.5;\n    shakeY = (Math.cos(timeSec * 8.1) + Math.sin(timeSec * 11.3)) * o.s.shake * 0.5;\n  }\n\n  if (o.wave) {\n    const strip = 4;\n    const amp = o.s.wave;\n    for (let y = 0; y < ch; y += strip) {\n      const dx = Math.sin(y * 0.012 + timeSec * 1.6) * amp\n               + Math.sin(y * 0.031 + timeSec * 2.3) * amp * 0.4;\n      ctx.drawImage(buffer, 0, y, cw, strip, dx + shakeX, y + shakeY, cw, strip);\n    }\n  } else {\n    ctx.drawImage(buffer, shakeX, shakeY);\n  }\n\n  // 3) Light flicker\n  if (o.light) {\n    const flick = Math.sin(timeSec * 1.3) * 0.5 + Math.sin(timeSec * 3.7) * 0.25;\n    const v = flick * o.s.light;\n    ctx.fillStyle = v >= 0 ? 'rgba(255,240,210,' + v + ')' : 'rgba(0,0,0,' + (-v) + ')';\n    ctx.fillRect(0, 0, cw, ch);\n  }\n\n  // 4) Floating particles\n  if (o.particles) {\n    for (const p of particles) {\n      const py = ((p.y - timeSec * p.speed) % ch + ch) % ch;\n      const px = p.x + Math.sin(timeSec * 0.8 + p.sway) * 25;\n      ctx.beginPath();\n      ctx.fillStyle = 'rgba(255,255,255,' + p.alpha + ')';\n      ctx.arc(px, py, p.r, 0, Math.PI * 2);\n      ctx.fill();\n    }\n  }\n\n  // 5) Soft vignette\n  if (o.vignette) {\n    const vg = ctx.createRadialGradient(cw / 2, ch / 2, ch * 0.45, cw / 2, ch / 2, ch * 0.95);\n    vg.addColorStop(0, 'rgba(0,0,0,0)');\n    vg.addColorStop(1, 'rgba(0,0,0,0.45)');\n    ctx.fillStyle = vg;\n    ctx.fillRect(0, 0, cw, ch);\n  }\n}\n\ngoBtn.addEventListener('click', async () => {\n  if (!img) return;\n  goBtn.disabled = true;\n  resultEl.innerHTML = '';\n  progressEl.style.width = '0%';\n\n  const o = getSettings();\n  const seconds = Math.min(60, Math.max(2, Number($('duration').value) || 10));\n  const fps = 30;\n\n  const mimeTypes = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];\n  const mime = mimeTypes.find(m => MediaRecorder.isTypeSupported(m));\n  if (!mime) {\n    statusEl.textContent = 'Your browser cannot record video. Please try Chrome or Edge.';\n    goBtn.disabled = false;\n    return;\n  }\n\n  const stream = canvas.captureStream(fps);\n  const recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8000000 });\n  const chunks = [];\n  recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };\n  const finished = new Promise(resolve => { recorder.onstop = resolve; });\n\n  recorder.start();\n  statusEl.textContent = 'Rendering (' + o.camera + ' + living effects)... keep this tab open.';\n\n  const startTime = performance.now();\n  await new Promise(resolve => {\n    function tick(now) {\n      const elapsed = (now - startTime) / 1000;\n      const t = Math.min(1, elapsed / seconds);\n      renderFrame(t, o, elapsed);\n      progressEl.style.width = (t * 100).toFixed(0) + '%';\n      if (t < 1) requestAnimationFrame(tick); else resolve();\n    }\n    requestAnimationFrame(tick);\n  });\n\n  recorder.stop();\n  await finished;\n\n  const blob = new Blob(chunks, { type: 'video/webm' });\n  const url = URL.createObjectURL(blob);\n  resultEl.innerHTML =\n    '<video controls src=\"' + url + '\"></video>' +\n    '<a class=\"download\" download=\"living-video.webm\" href=\"' + url + '\">Download video</a>';\n  statusEl.textContent = 'Done! Your video is ready.';\n  goBtn.disabled = false;\n});\n</script>\n</body>\n</html>\n```\n\n## How to put it on GitHub\n\n1. Open your repository on GitHub and click the file `index.html`.\n2. Click the pencil icon (Edit) in the top right.\n3. Select all the old code (Ctrl+A, or Cmd+A on Mac) and delete it.\n4. Paste the full code from the block above.\n5. Click Commit changes, then confirm.\n6. Wait about a minute, then open your site and press Ctrl+Shift+R to refresh.\n\nThe code ends with `</html>`. If what you pasted ends there, you have all of it."
-      }
-    }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Motion Video Maker - Living Images</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, sans-serif; background: #0f1220; color: #f2f2f2; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
+  h1 { margin: 0 0 4px; }
+  p.sub { margin: 0 0 20px; color: #9aa0b8; }
+  .panel { background: #181c30; border-radius: 14px; padding: 18px; margin-bottom: 18px; }
+  label { display: block; margin: 12px 0 6px; font-size: 14px; color: #c5c9de; }
+  input[type=file], select, input[type=number] {
+    width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #2c3254;
+    background: #0f1220; color: #f2f2f2; font-size: 15px;
+  }
+  .row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }
+  .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin-top: 8px; }
+  .checks label { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 15px; color: #f2f2f2; }
+  .checks input { width: 18px; height: 18px; }
+  input[type=range] { width: 100%; }
+  button {
+    margin-top: 16px; padding: 12px 20px; border: 0; border-radius: 10px;
+    background: #5b6cff; color: white; font-size: 16px; cursor: pointer;
+  }
+  button:disabled { background: #3a4070; cursor: not-allowed; }
+  canvas, video { width: 100%; border-radius: 10px; background: #000; display: block; }
+  #status { margin-top: 10px; color: #9aa0b8; font-size: 14px; }
+  a.download { display: inline-block; margin-top: 12px; color: #8fd1ff; font-size: 16px; }
+  .bar { height: 8px; background: #2c3254; border-radius: 6px; overflow: hidden; margin-top: 10px; }
+  .bar div { height: 100%; width: 0; background: #5b6cff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Motion Video Maker</h1>
+  <p class="sub">Turn a still image into a living video with small, natural movements.</p>
+
+  <div class="panel">
+    <label for="file">1. Choose an image</label>
+    <input id="file" type="file" accept="image/*">
+
+    <div class="row">
+      <div>
+        <label for="camera">2. Camera move</label>
+        <select id="camera">
+          <option value="zoomin">Slow zoom in</option>
+          <option value="zoomout">Slow zoom out</option>
+          <option value="panleft">Pan left</option>
+          <option value="panright">Pan right</option>
+          <option value="drift">Gentle drift</option>
+          <option value="none">None (stay still)</option>
+          <option value="random">Random</option>
+        </select>
+      </div>
+      <div>
+        <label for="duration">3. Seconds (max 60)</label>
+        <input id="duration" type="number" min="2" max="60" value="10">
+      </div>
+      <div>
+        <label for="ratio">4. Shape</label>
+        <select id="ratio">
+          <option value="1920x1080">16:9 (YouTube)</option>
+          <option value="1080x1920">9:16 (Shorts / TikTok)</option>
+          <option value="1080x1080">1:1 (Square)</option>
+        </select>
+      </div>
+    </div>
+
+    <label>5. Living effects (mix any)</label>
+    <div class="checks">
+      <label><input type="checkbox" id="fxWave" checked> Breathing wave</label>
+      <label><input type="checkbox" id="fxParallax" checked> Depth parallax</label>
+      <label><input type="checkbox" id="fxParticles" checked> Floating dust</label>
+      <label><input type="checkbox" id="fxLight" checked> Light flicker</label>
+      <label><input type="checkbox" id="fxShake"> Handheld shake</label>
+      <label><input type="checkbox" id="fxVignette" checked> Soft vignette</label>
+    </div>
+
+    <label for="strength">Movement strength: <span id="strengthVal">Medium</span></label>
+    <input id="strength" type="range" min="1" max="3" step="1" value="2">
+
+    <button id="go" disabled>Generate video</button>
+    <div class="bar"><div id="progress"></div></div>
+    <div id="status">Pick an image to begin.</div>
+  </div>
+
+  <div class="panel">
+    <canvas id="canvas" width="1920" height="1080"></canvas>
+    <div id="result"></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const canvas = $('canvas');
+const ctx = canvas.getContext('2d');
+const goBtn = $('go');
+const statusEl = $('status');
+const progressEl = $('progress');
+const resultEl = $('result');
+
+let img = null;
+let particles = [];
+
+// Strength settings: 1 subtle, 2 medium, 3 strong
+const STRENGTH = {
+  1: { name: 'Subtle', wave: 3,  parallax: 0.015, zoom: 0.05, shake: 2,  light: 0.05 },
+  2: { name: 'Medium', wave: 6,  parallax: 0.03,  zoom: 0.09, shake: 4,  light: 0.09 },
+  3: { name: 'Strong', wave: 10, parallax: 0.05,  zoom: 0.14, shake: 7,  light: 0.14 }
+};
+
+$('strength').addEventListener('input', () => {
+  $('strengthVal').textContent = STRENGTH[$('strength').value].name;
+});
+
+$('file').addEventListener('change', () => {
+  const f = $('file').files[0];
+  if (!f) return;
+  const image = new Image();
+  image.onload = () => {
+    img = image;
+    goBtn.disabled = false;
+    statusEl.textContent = 'Image loaded. Choose your effects and press Generate.';
+    setCanvasSize();
+    renderFrame(0, getSettings(), 0);
+  };
+  image.src = URL.createObjectURL(f);
+});
+
+$('ratio').addEventListener('change', () => {
+  setCanvasSize();
+  if (img) renderFrame(0, getSettings(), 0);
+});
+
+function setCanvasSize() {
+  const [w, h] = $('ratio').value.split('x').map(Number);
+  canvas.width = w;
+  canvas.height = h;
+  initParticles();
+}
+
+function initParticles() {
+  particles = [];
+  const count = 70;
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      r: 1 + Math.random() * 3,
+      speed: 6 + Math.random() * 18,
+      sway: Math.random() * Math.PI * 2,
+      alpha: 0.15 + Math.random() * 0.4
+    });
   }
 }
+
+function getSettings() {
+  let camera = $('camera').value;
+  if (camera === 'random') {
+    const options = ['zoomin', 'zoomout', 'panleft', 'panright', 'drift'];
+    camera = options[Math.floor(Math.random() * options.length)];
+  }
+  return {
+    camera,
+    s: STRENGTH[$('strength').value],
+    wave: $('fxWave').checked,
+    parallax: $('fxParallax').checked,
+    particles: $('fxParticles').checked,
+    light: $('fxLight').checked,
+    shake: $('fxShake').checked,
+    vignette: $('fxVignette').checked
+  };
+}
+
+function ease(t) { return t * t * (3 - 2 * t); }
+
+// Draw the image with a camera move, as a single layer.
+function drawLayer(target, t, o, layerScale, shiftX, shiftY) {
+  const cw = canvas.width, ch = canvas.height;
+  const baseScale = Math.max(cw / img.width, ch / img.height);
+  const e = ease(t);
+  let zoom = 1.0 + o.s.zoom * 0.6;
+  let offX = 0, offY = 0;
+
+  switch (o.camera) {
+    case 'zoomin':  zoom = 1 + o.s.zoom * e; break;
+    case 'zoomout': zoom = 1 + o.s.zoom * (1 - e); break;
+    case 'panleft': offX = 0.5 - e; zoom = 1 + o.s.zoom; break;
+    case 'panright': offX = -0.5 + e; zoom = 1 + o.s.zoom; break;
+    case 'drift':
+      offX = Math.sin(t * Math.PI * 2) * 0.5;
+      offY = Math.cos(t * Math.PI * 2 * 0.8) * 0.4;
+      zoom = 1 + o.s.zoom;
+      break;
+    case 'none': zoom = 1.04; break;
+  }
+
+  const scale = baseScale * zoom * layerScale;
+  const dw = img.width * scale, dh = img.height * scale;
+  const spareX = Math.max(0, dw - cw), spareY = Math.max(0, dh - ch);
+  const x = (cw - dw) / 2 + offX * spareX + shiftX;
+  const y = (ch - dh) / 2 + offY * spareY + shiftY;
+  target.drawImage(img, x, y, dw, dh);
+}
+
+// Offscreen buffers
+const buffer = document.createElement('canvas');
+const bctx = buffer.getContext('2d');
+const fg = document.createElement('canvas');
+const fctx = fg.getContext('2d');
+
+function renderFrame(t, o, timeSec) {
+  const cw = canvas.width, ch = canvas.height;
+  if (buffer.width !== cw || buffer.height !== ch) {
+    buffer.width = cw; buffer.height = ch;
+    fg.width = cw; fg.height = ch;
+  }
+
+  // 1) Build the base picture in the buffer (with optional parallax layers)
+  bctx.globalCompositeOperation = 'source-over';
+  bctx.fillStyle = '#000';
+  bctx.fillRect(0, 0, cw, ch);
+
+  if (o.parallax) {
+    // Background layer moves a little
+    const bgX = Math.sin(timeSec * 0.6) * cw * o.s.parallax * 0.5;
+    const bgY = Math.cos(timeSec * 0.5) * ch * o.s.parallax * 0.4;
+    drawLayer(bctx, t, o, 1.0, bgX, bgY);
+
+    // Foreground layer (centre of the image) moves the opposite way
+    fctx.globalCompositeOperation = 'source-over';
+    fctx.clearRect(0, 0, cw, ch);
+    const fgX = -Math.sin(timeSec * 0.6) * cw * o.s.parallax;
+    const fgY = -Math.cos(timeSec * 0.5) * ch * o.s.parallax * 0.8;
+    drawLayer(fctx, t, o, 1.04, fgX, fgY);
+    fctx.globalCompositeOperation = 'destination-in';
+    const mask = fctx.createRadialGradient(cw / 2, ch / 2, ch * 0.15, cw / 2, ch / 2, ch * 0.65);
+    mask.addColorStop(0, 'rgba(0,0,0,1)');
+    mask.addColorStop(1, 'rgba(0,0,0,0)');
+    fctx.fillStyle = mask;
+    fctx.fillRect(0, 0, cw, ch);
+    fctx.globalCompositeOperation = 'source-over';
+    bctx.drawImage(fg, 0, 0);
+  } else {
+    drawLayer(bctx, t, o, 1.0, 0, 0);
+  }
+
+  // 2) Copy buffer to the main canvas, with a wave warp if enabled
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, cw, ch);
+
+  let shakeX = 0, shakeY = 0;
+  if (o.shake) {
+    shakeX = (Math.sin(timeSec * 7.3) + Math.sin(timeSec * 12.9)) * o.s.shake * 0.5;
+    shakeY = (Math.cos(timeSec * 8.1) + Math.sin(timeSec * 11.3)) * o.s.shake * 0.5;
+  }
+
+  if (o.wave) {
+    const strip = 4;
+    const amp = o.s.wave;
+    for (let y = 0; y < ch; y += strip) {
+      const dx = Math.sin(y * 0.012 + timeSec * 1.6) * amp
+               + Math.sin(y * 0.031 + timeSec * 2.3) * amp * 0.4;
+      ctx.drawImage(buffer, 0, y, cw, strip, dx + shakeX, y + shakeY, cw, strip);
+    }
+  } else {
+    ctx.drawImage(buffer, shakeX, shakeY);
+  }
+
+  // 3) Light flicker
+  if (o.light) {
+    const flick = Math.sin(timeSec * 1.3) * 0.5 + Math.sin(timeSec * 3.7) * 0.25;
+    const v = flick * o.s.light;
+    ctx.fillStyle = v >= 0 ? 'rgba(255,240,210,' + v + ')' : 'rgba(0,0,0,' + (-v) + ')';
+    ctx.fillRect(0, 0, cw, ch);
+  }
+
+  // 4) Floating particles
+  if (o.particles) {
+    for (const p of particles) {
+      const py = ((p.y - timeSec * p.speed) % ch + ch) % ch;
+      const px = p.x + Math.sin(timeSec * 0.8 + p.sway) * 25;
+      ctx.beginPath();
+      ctx.fillStyle = 'rgba(255,255,255,' + p.alpha + ')';
+      ctx.arc(px, py, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // 5) Soft vignette
+  if (o.vignette) {
+    const vg = ctx.createRadialGradient(cw / 2, ch / 2, ch * 0.45, cw / 2, ch / 2, ch * 0.95);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.45)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, cw, ch);
+  }
+}
+
+goBtn.addEventListener('click', async () => {
+  if (!img) return;
+  goBtn.disabled = true;
+  resultEl.innerHTML = '';
+  progressEl.style.width = '0%';
+
+  const o = getSettings();
+  const seconds = Math.min(60, Math.max(2, Number($('duration').value) || 10));
+  const fps = 30;
+
+  const mimeTypes = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+  const mime = mimeTypes.find(m => MediaRecorder.isTypeSupported(m));
+  if (!mime) {
+    statusEl.textContent = 'Your browser cannot record video. Please try Chrome or Edge.';
+    goBtn.disabled = false;
+    return;
+  }
+
+  const stream = canvas.captureStream(fps);
+  const recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8000000 });
+  const chunks = [];
+  recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+  const finished = new Promise(resolve => { recorder.onstop = resolve; });
+
+  recorder.start();
+  statusEl.textContent = 'Rendering (' + o.camera + ' + living effects)... keep this tab open.';
+
+  const startTime = performance.now();
+  await new Promise(resolve => {
+    function tick(now) {
+      const elapsed = (now - startTime) / 1000;
+      const t = Math.min(1, elapsed / seconds);
+      renderFrame(t, o, elapsed);
+      progressEl.style.width = (t * 100).toFixed(0) + '%';
+      if (t < 1) requestAnimationFrame(tick); else resolve();
+    }
+    requestAnimationFrame(tick);
+  });
+
+  recorder.stop();
+  await finished;
+
+  const blob = new Blob(chunks, { type: 'video/webm' });
+  const url = URL.createObjectURL(blob);
+  resultEl.innerHTML =
+    '<video controls src="' + url + '"></video>' +
+    '<a class="download" download="living-video.webm" href="' + url + '">Download video</a>';
+  statusEl.textContent = 'Done! Your video is ready.';
+  goBtn.disabled = false;
+});
+</script>
+</body>
+</html>
